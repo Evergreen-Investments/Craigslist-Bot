@@ -1,9 +1,16 @@
-import requests
+port requests
 import json
 import datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException
+from selenium.webdriver.support.select import Select
 import time
 # from selenium.webdriver.support.ui import WebDriverWait
 # import os.path
@@ -18,20 +25,20 @@ Generated_Code = "1000.48608c16dc0d8e020e37299f53b12354.d74686295a1aa3e705bbc381
 Refresh_Token = "1000.30675f2b6ca864315842cd612222485c.ea4452c6c836120f363ed888925aac87"
 
 
-def generate_refresh_token(client_id, client_secret, redirect_uri, code):
-    parameters = dict()
-    parameters['grant_type'] = "authorization_code"
-    parameters['client_id'] = client_id
-    parameters['client_secret'] = client_secret
-    parameters['redirect_uri'] = redirect_uri
-    parameters['code'] = code
-    response = requests.post(Account_URL, data=parameters)
-    response_json = json.loads(response.text)
-    return response_json['refresh_token']
-
-
-Refresh_Token = generate_refresh_token(Client_ID, Client_Secret, Redirect_URI, Generated_Code)
-print(Refresh_Token)
+# def generate_refresh_token(client_id, client_secret, redirect_uri, code):
+#     parameters = dict()
+#     parameters['grant_type'] = "authorization_code"
+#     parameters['client_id'] = client_id
+#     parameters['client_secret'] = client_secret
+#     parameters['redirect_uri'] = redirect_uri
+#     parameters['code'] = code
+#     response = requests.post(Account_URL, data=parameters)
+#     response_json = json.loads(response.text)
+#     return response_json['refresh_token']
+#
+#
+# Refresh_Token = generate_refresh_token(Client_ID, Client_Secret, Redirect_URI, Generated_Code)
+# print(Refresh_Token)
 
 
 def generate_access_token(refresh_token, client_id, client_secret, redirect_uri):
@@ -73,9 +80,9 @@ get_users(Access_Token)
 
 
 def get_properties_database(access_token):
-
+    us_eastern_dt = str(datetime.now(tz=ZoneInfo("America/New_York")).strftime("%Y-%m-%d"))
     authtoken = access_token
-    url = 'https://www.zohoapis.com/crm/v3/PropertyDatabase/actions/count'
+    url = f'https://www.zohoapis.com/crm/v3/PropertyDatabase/actions/count?criteria=(Created_Date:equals:{us_eastern_dt})'
 
     headers = {
         'Authorization': 'Zoho-oauthtoken {}'.format(authtoken)
@@ -94,34 +101,47 @@ def get_properties_database(access_token):
                 no_of_page = pages
             else:
                 no_of_page = int(pages) + 1
+    else:
+        no_of_page = 0
 
     property_database = []
     print(no_of_page)
     for page in range(no_of_page+1):
         if page == 0:
             continue
-        elif page == 1:
-            url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase?fields=City,State,Postal_Code,Listing_Price,Square_Feet,Beds,Baths,Property_Type,Ticket_Notes&batch_size=200&page={page}"
-            headers = {"Authorization": f"Zoho-oauthtoken {authtoken}"}
-            response = requests.get(url, headers=headers)
-            response_data = response.json().get("data")
-            property_database = property_database + response_data
-            page_token = response.json().get("info").get("next_page_token")
+        # elif page == 1:
+        #     url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase?fields=City,State,Postal_Code,Listing_Price,Square_Feet,Beds,Baths,Property_Type,Ticket_Notes&batch_size=200&page={page}"
+        #     headers = {"Authorization": f"Zoho-oauthtoken {authtoken}"}
+        #     response = requests.get(url, headers=headers)
+        #     response_data = response.json().get("data")
+        #     property_database = property_database + response_data
+        #     page_token = response.json().get("info").get("next_page_token")
         else:
-            url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase?fields=City,State,Postal_Code,Listing_Price,Square_Feet,Beds,Baths,Property_Type,Ticket_Notes&batch_size=200&page_token={page_token}"
+            # url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase?fields=City,State,Postal_Code,Listing_Price,Square_Feet,Beds,Baths,Property_Type,Ticket_Notes&batch_size=200&page_token={page_token}"
+            # headers = {"Authorization": f"Zoho-oauthtoken {authtoken}"}
+            # response = requests.get(url, headers=headers)
+            # response_data = response.json().get("data")
+            # if response_data is None:
+            #     print("Response data is None")
+            #     break
+            # page_token = response.json().get("info").get("next_page_token")
+            # property_database = property_database + response_data
+
+            url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase/search?criteria=(Created_Date:equals:{us_eastern_dt})&page={page}"
             headers = {"Authorization": f"Zoho-oauthtoken {authtoken}"}
             response = requests.get(url, headers=headers)
+            print(response)
             response_data = response.json().get("data")
+            print(response_data)
             if response_data is None:
                 print("Response data is None")
                 break
-            page_token = response.json().get("info").get("next_page_token")
             property_database = property_database + response_data
     return property_database
 
 
 property_list = get_properties_database(Access_Token)
-
+print(property_list)
 
 def week_number():
 
@@ -147,10 +167,23 @@ def email_assignment():
         for mail in week_odd:
             mail_assignment[states[week_odd.index(mail)]] = mail
     # itr = 1
+    states_dict = {}
+    i = 0
+    for st in states:
+        i += 1
+        if 0 <= states.index(st) <= 12:
+            states_dict[st] = [1, i]
+        elif 13 <= states.index(st) <= 25:
+            states_dict[st] = [1, i - 13]
+        elif 26 <= states.index(st) <= 38:
+            states_dict[st] = [1, i - 26]
+        else:
+            states_dict[st] = [1, i - 39]
     for prop in property_list:
         # print(prop["State"])
         if prop["State"] is not None and prop["State"] != "" and len(prop) != 0 and prop["State"] in states:
             prop["email"] = mail_assignment[prop["State"]]
+            prop["xpath_rule"] = states_dict[prop["State"]]
             # itr += 1
             # if itr < 10:
             #     print(prop)
@@ -163,9 +196,55 @@ email_assignment()
 
 # print(get_properties_database(Access_Token))
 
-browser = webdriver.Chrome('/Applications/PythonBotClass/selenium_tutorial/chromedriver')
 
-browser.get('https://post.craigslist.org/')
+def assign_xpath_to_state():
+    states = ["AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"]
+    states_dict = {}
+    i = 0
+    for st in states:
+        i += 1
+        if 0 <= states.index(st) <= 12:
+            states_dict[st] = [1, i]
+        elif 13 <= states.index(st) <= 25:
+            states_dict[st] = [1, i-13]
+        elif 26 <= states.index(st) <= 38:
+            states_dict[st] = [1, i-26]
+        else:
+            states_dict[st] = [1, i - 39]
+    return states_dict
+
+
+def navigate_to_craigslist(property):
+    driver = webdriver.Chrome('C://Users//parth//Downloads//chromedriver_win32//chromedriver.exe')
+    while True:
+        try:
+            # Initialize driver object and go to login site
+            driver.get('https://www.craigslist.org/about/sites#US')
+
+            # 'wait' variable, meant to give webpage time to load before accessing elements
+
+            xr = property["xpath_rule"]
+
+            xpath_rule = f"/html/body/article/section/div[3]/div[{xr[0]}]/h4[{xr[1]}]/li[1]/a"
+            wait = WebDriverWait(driver, 30)
+            city_btn = wait.until(
+                EC.visibility_of_element_located((By.XPATH, xpath_rule)))
+            city_btn.click()
+            for_sale_btn = wait.until(
+                EC.visibility_of_element_located(
+                    (By.XPATH, '//*[@id="sss"]/h3/a')))
+            for_sale_btn.click()
+            post_btn = wait.until(
+                EC.visibility_of_element_located(
+                    (By.CLASS_NAME, 'bd-button text-only cl-goto-post link-like')))
+            post_btn.click()
+            return driver
+        except (TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException) as exception:
+            print(f"ERROR: {exception}")
+            continue
+
+def post_on_craigslist(driver):
+    
 
 browser.find_element(By.CLASS_NAME, "ui-selectmenu-text").click()
 browser.find_element(By.XPATH,'//li[@id="ui-id-3"]').click()
