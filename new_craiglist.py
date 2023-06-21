@@ -1,7 +1,7 @@
-port requests
+import requests
 import json
 import datetime
-from datetime import datetime
+from datetime import  datetime, timedelta
 from zoneinfo import ZoneInfo
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
@@ -81,8 +81,9 @@ get_users(Access_Token)
 
 def get_properties_database(access_token):
     us_eastern_dt = str(datetime.now(tz=ZoneInfo("America/New_York")).strftime("%Y-%m-%d"))
+    us_eastern_dt_week = str((datetime.now(tz=ZoneInfo("America/New_York")) + timedelta(days=7)).strftime("%Y-%m-%d"))
     authtoken = access_token
-    url = f'https://www.zohoapis.com/crm/v3/PropertyDatabase/actions/count?criteria=(Created_Date:equals:{us_eastern_dt})'
+    url = f'https://www.zohoapis.com/crm/v3/PropertyDatabase/actions/count?criteria=(Created_Date:equals:{us_eastern_dt} and {us_eastern_dt_week})'
 
     headers = {
         'Authorization': 'Zoho-oauthtoken {}'.format(authtoken)
@@ -127,7 +128,7 @@ def get_properties_database(access_token):
             # page_token = response.json().get("info").get("next_page_token")
             # property_database = property_database + response_data
 
-            url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase/search?criteria=(Created_Date:equals:{us_eastern_dt})&page={page}"
+            url = f"https://www.zohoapis.com/crm/v3/PropertyDatabase/search?criteria=(Created_Date:between:{us_eastern_dt} and )&page={page}"
             headers = {"Authorization": f"Zoho-oauthtoken {authtoken}"}
             response = requests.get(url, headers=headers)
             print(response)
@@ -243,78 +244,92 @@ def navigate_to_craigslist(property):
             print(f"ERROR: {exception}")
             continue
 
-def post_on_craigslist(driver):
-    
 
-browser.find_element(By.CLASS_NAME, "ui-selectmenu-text").click()
-browser.find_element(By.XPATH,'//li[@id="ui-id-3"]').click()
-browser.find_element(By.XPATH, '//button[@name="go"]').click()
+def post_on_craigslist(driver, property):
+    while True:
+        try:
+            wait = WebDriverWait(driver, 30)
 
-browser.find_element(By.XPATH, '//input[@name="id" and @value="ho"]').click()
+            title_area = wait.until(
+                EC.visibility_of_element_located((By.XPATH, '//input[@name="PostingTitle" and @id="PostingTitle"]')))
+            title_area.send_keys(f"{property['Beds']}, {property['Baths']}, {property['City']}, {property['State']}")
 
-browser.find_element(By.XPATH, '//input[@name="id" and @value="144"]').click()
+            city = wait.until(
+                EC.visibility_of_element_located((By.XPATH, '//input[@name= "geographic_area" and @id="geographic_area"]')))
+            city.send_keys(f"{property['City']}")
 
-browser.find_element(By.XPATH, '//button[@name="go"]').click()
+            postal = wait.until(
+                EC.visibility_of_element_located(
+                    (By.XPATH, '//input[@name= "postal" and @id="postal_code"]')))
+            postal.send_keys(f"{property['Postal_Code']}")
 
-title_area = browser.find_element(By.XPATH, '//input[@name="PostingTitle" and @id="PostingTitle"]')
-title_area.send_keys("Bed, Baths, city, State")
+            description = wait.until(
+                EC.visibility_of_element_located(
+                    (By.XPATH, '//textarea[@name= "PostingBody" and @id="PostingBody"]')))
+            description.send_keys(f"{property['Ticket_Notes']}")
 
-city = browser.find_element(By.XPATH,'//input[@name= "geographic_area" and @id="geographic_area"]')
-city.send_keys("atlanta")
+            price = wait.until(
+                EC.visibility_of_element_located(
+                    (By.XPATH, '//input[@name= "price"]')))
+            price.send_keys(f"{property['Listing_Price']}")
 
-postal = browser.find_element(By.XPATH,'//input[@name= "postal" and @id="postal_code"]')
-postal.send_keys("30033")
+            sqft = wait.until(
+                EC.visibility_of_element_located(
+                    (By.XPATH, '//input[@name= "surface_area"]')))
+            sqft.send_keys(f"{property['Square_Feet']}")
 
-description = browser.find_element(By.XPATH,'//textarea[@name= "PostingBody" and @id="PostingBody"]')
-description.send_keys("ticket notes")
+            # house type
 
-price = browser.find_element(By.XPATH,'//input[@name= "price"]')
-price.send_keys("1000")
+            house_type = driver.find_element(By.XPATH, '//span[@id = "ui-id-1-button"]').click()
+            actions = ActionChains(driver)
 
-sqft = browser.find_element(By.XPATH,'//input[@name= "surface_area"]')
-sqft.send_keys("123")
+            for x in range(5):
+                actions.send_keys(Keys.ARROW_DOWN)
+            actions.send_keys(Keys.ENTER).click()
+            actions.perform()
 
-house_type = browser.find_element(By.XPATH,'//span[@id = "ui-id-1-button"]').click()
+            # laundry
+            laundry = driver.find_element(By.XPATH, '//span[@id = "ui-id-2-button"]').click()
+            actions = ActionChains(driver)
+            for x in range(2):
+                actions.send_keys(Keys.ARROW_DOWN)
+            actions.send_keys(Keys.ENTER).click()
+            actions.perform()
 
-actions = ActionChains(browser)
+            # parking
+            parking = driver.find_element(By.XPATH, '//span[@id = "ui-id-3-button"]').click()
+            actions = ActionChains(driver)
 
-for x in range (5):
-    actions.send_keys(Keys.ARROW_DOWN)
-actions.send_keys(Keys.ENTER).click()
-actions.perform()
+            for x in range(5):
+                actions.send_keys(Keys.ARROW_DOWN)
+            actions.send_keys(Keys.ENTER).click()
+            actions.perform()
+
+            driver.find_element(By.XPATH, '//input[@name="show_phone_ok" and @value="1"]').click()
+            phone_number = driver.find_element(By.XPATH, '//input[@name= "contact_phone"]')
+            phone_number.send_keys("729591396")
+
+            contact_name = driver.find_element(By.XPATH, '//input[@name= "contact_name"]')
+            contact_name.send_keys("Evergreen Investments.co")
+
+            driver.find_element(By.XPATH, '//input[@name="has_license" and @value="1"]').click()
+            license = driver.find_element(By.XPATH, '//input[@name= "license_info"]')
+            license.send_keys("342184")
+            email = driver.find_element(By.XPATH, '//input[@name= "FromEMail"]')
+            email.send_keys(f"{property['email']}")
+            driver.find_element(By.XPATH, '//button[@name="go" and @value="continue"]').click()
+            driver.find_element(By.XPATH, '//button[@class="continue bigbutton"]').click()
+            time.sleep(3)
+
+            driver.find_element(By.XPATH, '//button[@value="Done with Images"]').click()
+            driver.find_element(By.XPATH, '//button[@class="button"]').click()
+            time.sleep(15)
+
+            return driver
+        except (TimeoutException, NoSuchElementException, ElementClickInterceptedException, StaleElementReferenceException) as exception:
+            print(f"ERROR: {exception}")
+            continue
 
 
-laundry = browser.find_element(By.XPATH,'//span[@id = "ui-id-2-button"]').click()
-actions = ActionChains(browser)
-for x in range (2):
-    actions.send_keys(Keys.ARROW_DOWN)
-actions.send_keys(Keys.ENTER).click()
-actions.perform()
 
-parking  = browser.find_element(By.XPATH,'//span[@id = "ui-id-3-button"]').click()
-actions = ActionChains(browser)
 
-for x in range (5):
-    actions.send_keys(Keys.ARROW_DOWN)
-actions.send_keys(Keys.ENTER).click()
-actions.perform()
-
-browser.find_element(By.XPATH, '//input[@name="show_phone_ok" and @value="1"]').click()
-phone_number = browser.find_element(By.XPATH,'//input[@name= "contact_phone"]')
-phone_number.send_keys("888-299-4429")
-
-contact_name = browser.find_element(By.XPATH,'//input[@name= "contact_name"]')
-contact_name.send_keys("Evergreen Investments.co")
-
-browser.find_element(By.XPATH, '//input[@name="has_license" and @value="1"]').click()
-license = browser.find_element(By.XPATH,'//input[@name= "license_info"]')
-license.send_keys("342184")
-email = browser.find_element(By.XPATH,'//input[@name= "FromEMail"]')
-email.send_keys("destiny.barbery@gmail.com")
-browser.find_element(By.XPATH, '//button[@name="go" and @value="continue"]').click()
-browser.find_element(By.XPATH, '//button[@class="continue bigbutton"]').click()
-time.sleep(3)
-
-browser.find_element(By.XPATH, '//button[@value="Done with Images"]').click()
-browser.find_element(By.XPATH, '//button[@class="button"]').click()
-time.sleep(15)
